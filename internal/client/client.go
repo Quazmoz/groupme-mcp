@@ -23,29 +23,69 @@ var globalRateLimiter struct {
 	requests []time.Time
 }
 
-func checkRateLimit() error {
-	if os.Getenv("RATE_LIMIT_ENABLED") == "false" {
-		return nil
-	}
-	maxReqs := 100
-	window := 60
+type rateLimitConfig struct {
+	enabled            bool
+	maxRequests        int
+	windowSeconds      int
+	burstAllowance     int
+	usesDocumentedEnvs bool
+}
 
+func readRateLimitConfig() rateLimitConfig {
+	cfg := rateLimitConfig{
+		enabled:       true,
+		maxRequests:   120,
+		windowSeconds: 60,
+	}
+
+	if raw := strings.TrimSpace(os.Getenv("RATE_LIMIT_ENABLED")); raw != "" {
+		if enabled, err := strconv.ParseBool(raw); err == nil {
+			cfg.enabled = enabled
+		}
+	}
+	if !cfg.enabled {
+		return cfg
+	}
+
+	if val := os.Getenv("RATE_LIMIT_GLOBAL_RPM"); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
+			cfg.maxRequests = parsed
+			cfg.usesDocumentedEnvs = true
+		}
+	}
+	if val := os.Getenv("RATE_LIMIT_BURST"); val != "" {
+		if parsed, err := strconv.Atoi(val); err == nil && parsed >= 0 {
+			cfg.burstAllowance = parsed
+			cfg.usesDocumentedEnvs = true
+		}
+	}
+
+	// Backward compatibility for older limiter variables.
 	if val := os.Getenv("RATE_LIMIT_REQUESTS"); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
-			maxReqs = parsed
+			cfg.maxRequests = parsed
 		}
 	}
 	if val := os.Getenv("RATE_LIMIT_WINDOW_SECONDS"); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
-			window = parsed
+			cfg.windowSeconds = parsed
 		}
+	}
+
+	return cfg
+}
+
+func checkRateLimit() error {
+	cfg := readRateLimitConfig()
+	if !cfg.enabled {
+		return nil
 	}
 
 	globalRateLimiter.Lock()
 	defer globalRateLimiter.Unlock()
 
 	now := time.Now()
-	cutoff := now.Add(-time.Duration(window) * time.Second)
+	cutoff := now.Add(-time.Duration(cfg.windowSeconds) * time.Second)
 
 	var valid []time.Time
 	for _, t := range globalRateLimiter.requests {
@@ -55,8 +95,13 @@ func checkRateLimit() error {
 	}
 	globalRateLimiter.requests = valid
 
-	if len(globalRateLimiter.requests) >= maxReqs {
-		return fmt.Errorf("local rate limit exceeded: max %d requests per %d seconds", maxReqs, window)
+	effectiveLimit := cfg.maxRequests
+	if cfg.usesDocumentedEnvs && cfg.burstAllowance > 0 {
+		effectiveLimit += cfg.burstAllowance
+	}
+
+	if len(globalRateLimiter.requests) >= effectiveLimit {
+		return fmt.Errorf("local rate limit exceeded: max %d requests per %d seconds", effectiveLimit, cfg.windowSeconds)
 	}
 
 	globalRateLimiter.requests = append(globalRateLimiter.requests, now)

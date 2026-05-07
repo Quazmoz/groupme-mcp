@@ -1287,27 +1287,7 @@ func listPollsHandler(ctx context.Context, c *client.Client, args map[string]int
 }
 
 func createPollHandler(ctx context.Context, c *client.Client, args map[string]interface{}) (interface{}, error) {
-	groupID := getString(args, "group_id")
-	subject := getString(args, "subject")
-	optionsStr := getString(args, "options")
-	if groupID == "" || subject == "" || optionsStr == "" {
-		return nil, fmt.Errorf("group_id, subject, and options are required")
-	}
-
-	var options []string
-	if err := json.Unmarshal([]byte(optionsStr), &options); err != nil {
-		options = strings.Split(optionsStr, ",")
-		for i := range options {
-			options[i] = strings.TrimSpace(options[i])
-		}
-	}
-
-	if len(options) < 2 {
-		return nil, fmt.Errorf("at least 2 options are required")
-	}
-
-	expiration := getInt(args, "expiration", 0)
-	return c.CreatePoll(ctx, groupID, subject, options, expiration)
+	return createPollWithArgs(ctx, c, args)
 }
 
 func getPollHandler(ctx context.Context, c *client.Client, args map[string]interface{}) (interface{}, error) {

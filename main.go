@@ -187,7 +187,7 @@ func main() {
 - Subgroups/subtopics are accessed under the groups namespace: list them with /groups/{parent_group_id}/subgroups, then read their messages with /groups/{subgroup_id}/messages.
 - Do NOT use /conversations/{id}/messages for subgroup/subtopic message retrieval.
 - If GroupMe behavior is undocumented or inconsistent, use groupme_probe_api_endpoints to compare read-only endpoint candidates before concluding the API is unsupported.
-- Example undocumented-endpoint probe: call groupme_probe_api_endpoints with candidates_json like [{"label":"subgroups-list","endpoint":"/groups/90951330/subgroups?page=1&per_page=25"},{"label":"subgroup-messages","endpoint":"/groups/109458263/messages?limit=5"},{"label":"baseline-groups","endpoint":"/groups?page=1&per_page=5"}].
+- Example undocumented-endpoint probe: call groupme_probe_api_endpoints with candidates_json like [{"label":"subgroups-list","endpoint":"/groups/{parent_group_id}/subgroups?page=1&per_page=25"},{"label":"subgroup-messages","endpoint":"/groups/{subgroup_id}/messages?limit=5"},{"label":"baseline-groups","endpoint":"/groups?page=1&per_page=5"}].
 - group_id must always be a numeric ID, never a group name.
 - membership_id (used in leave/remove) is different from user_id — get it from the members array in groupme_get_group.`,
 			},

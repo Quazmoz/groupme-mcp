@@ -84,36 +84,42 @@ type CreatePollRequest struct {
 // CreatePollWithRequest creates a new poll with advanced options.
 // See: https://groupme-js.github.io/GroupMeCommunityDocs/api/groups/polls/
 func (c *Client) CreatePollWithRequest(ctx context.Context, req CreatePollRequest) (*Poll, error) {
-	if req.Subject == "" {
+	groupID := strings.TrimSpace(req.GroupID)
+	if groupID == "" {
+		return nil, fmt.Errorf("group_id is required")
+	}
+
+	subject := strings.TrimSpace(req.Subject)
+	if subject == "" {
 		return nil, fmt.Errorf("subject is required")
 	}
 
-	// Trim whitespace and filter out empty options
 	var validOptions []string
 	seen := make(map[string]bool)
 	for _, opt := range req.Options {
 		trimmed := strings.TrimSpace(opt)
 		if trimmed == "" {
-			continue
+			return nil, fmt.Errorf("poll options cannot be empty")
 		}
-		if !seen[trimmed] {
-			seen[trimmed] = true
-			validOptions = append(validOptions, trimmed)
+		if seen[trimmed] {
+			return nil, fmt.Errorf("duplicate poll option: %q", trimmed)
 		}
+		seen[trimmed] = true
+		validOptions = append(validOptions, trimmed)
 	}
 
 	if len(validOptions) < 2 {
-		return nil, fmt.Errorf("at least two unique, non-empty options are required")
+		return nil, fmt.Errorf("at least two options are required")
 	}
 
-	pollType := req.PollType
+	pollType := strings.ToLower(strings.TrimSpace(req.PollType))
 	if pollType == "" {
-		pollType = "multi" // Default backward compatibility
+		pollType = "multi"
 	} else if pollType != "single" && pollType != "multi" {
 		return nil, fmt.Errorf("invalid poll type: %s", pollType)
 	}
 
-	visibility := req.Visibility
+	visibility := strings.ToLower(strings.TrimSpace(req.Visibility))
 	if visibility == "" {
 		visibility = "public"
 	} else if visibility != "public" && visibility != "anonymous" {
@@ -121,7 +127,7 @@ func (c *Client) CreatePollWithRequest(ctx context.Context, req CreatePollReques
 	}
 
 	// Endpoint: POST /poll/:group_id
-	endpoint := fmt.Sprintf("/poll/%s", req.GroupID)
+	endpoint := fmt.Sprintf("/poll/%s", groupID)
 
 	// Build options array
 	type CreatePollOption struct {
@@ -149,7 +155,7 @@ func (c *Client) CreatePollWithRequest(ctx context.Context, req CreatePollReques
 		Type       string             `json:"type"`       // "single" or "multi"
 		Visibility string             `json:"visibility"` // "public" or "anonymous"
 	}{
-		Subject:    req.Subject,
+		Subject:    subject,
 		Options:    pollOptions,
 		Expiration: expirationDate,
 		Type:       pollType,

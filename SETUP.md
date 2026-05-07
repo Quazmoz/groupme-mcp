@@ -12,16 +12,16 @@ Before configuring the AI agent, deploy the server to your cluster.
     apiVersion: v1
     kind: Secret
     metadata:
-      name: groupme-mcp-secrets
-      namespace: tools
+      name: <service-name>-secrets
+      namespace: <namespace>
     type: Opaque
     stringData:
       # Required for Solution 1 (Manual/Private)
       groupme-access-token: "YOUR_ACCESS_TOKEN"
       
       # Required for Solution 2 (Multi-User)
-      encryption-key: "YOUR_32_CHAR_ENCRYPTION_KEY_HERE"
-      jwt-secret: "YOUR_JWT_SECRET_HERE" # Match OpenWebUI's JWT secret
+      encryption-key: "YOUR_ENCRYPTION_KEY"
+      jwt-secret: "YOUR_JWT_SECRET" # Match your OpenWebUI JWT secret
       redis-password: "YOUR_REDIS_PASSWORD"
     ```
     Apply it: `kubectl apply -f k8s/secret.yaml`
@@ -51,9 +51,9 @@ Use this if you are connecting OpenWebUI **directly** to the GroupMe MCP Server 
 
 **Method 1: Single User (Private)**
 1.  Go to **Admin Panel > Settings > Connections**.
-1.  Create a **New Server** in Context Forge.
-2.  **URL**: `http://groupme-backend.apps.svc.cluster.local:5000/mcp`
-    *(Use the internal cluster URL)*
+2.  Add a new **MCP Server**.
+3.  **URL**: `http://<service-name>.<namespace>.svc.cluster.local:5000/mcp`
+4.  **Headers**:
     *   `Authorization`: `Bearer YOUR_ACCESS_TOKEN`
 
 **Method 2: Multi-User (Shared / Public)**
@@ -62,7 +62,7 @@ Use this if you are connecting OpenWebUI **directly** to the GroupMe MCP Server 
 
 1.  **Admin**: Go to **Admin Panel > Settings > Connections**.
 2.  Add a new **MCP Server**.
-3.  **URL**: `http://groupme-backend.apps.svc.cluster.local:5000/mcp`
+3.  **URL**: `http://<service-name>.<namespace>.svc.cluster.local:5000/mcp`
 4.  **Headers**: (Leave Empty)
     *   *The server will see who is talking and handle their specific session.*
 
@@ -76,7 +76,7 @@ Use this if you are using **Context Forge** to manage/proxy your MCP tools.
 2.  Create a **New Server**.
 3.  **Name**: `groupme`
 4.  **Transport Type**: `HTTP` (Streamable)
-5.  **Base URL**: `http://groupme-backend.apps.svc.cluster.local:5000/mcp`
+5.  **Base URL**: `http://<service-name>.<namespace>.svc.cluster.local:5000/mcp`
 
 **2. Configure Authentication (Virtual Server)**
 *   **Auth Type**: `Bearer Token`
@@ -94,7 +94,7 @@ Connect directly to your deployed server and pass your GroupMe token in the head
 
 1.  Port-forward the service (if not exposed externally):
     ```bash
-    kubectl port-forward svc/groupme-backend 5000:5000 -n apps
+    kubectl port-forward svc/<service-name> 5000:5000 -n <namespace>
     ```
 
 2.  Add to VS Code `settings.json`:
@@ -105,7 +105,7 @@ Connect directly to your deployed server and pass your GroupMe token in the head
                 "type": "http",
                 "url": "http://localhost:5000/mcp",
                 "headers": {
-                    "Authorization": "Bearer YOUR_GROUPME_ACCESS_TOKEN"
+                    "Authorization": "Bearer YOUR_ACCESS_TOKEN"
                 }
             }
         }
@@ -147,7 +147,7 @@ If you have added the server to Context Forge, use its proxy URL.
     "servers": {
         "groupme": {
             "type": "http",
-            "url": "http://mcp.k8s.local/servers/<YOUR_SERVER_ID>/mcp"
+            "url": "http://<your-domain>/servers/<server-id>/mcp"
         }
     }
 }
@@ -190,7 +190,7 @@ If your server is exposed externally (e.g., via Cloudflare Tunnel or Ingress):
     "servers": {
         "groupme": {
             "type": "http",
-            "url": "https://groupme-mcp.yourdomain.com/mcp",
+            "url": "https://<your-domain>/mcp",
             "headers": {
                 "Authorization": "Bearer ${input:groupme-token}"
             }

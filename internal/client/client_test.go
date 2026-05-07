@@ -284,6 +284,7 @@ func TestCreatePollWithRequest(t *testing.T) {
 		GroupID:        "123",
 		Subject:        "New Poll",
 		Options:        []string{"A", "B"},
+		ExpirationSecs: 3600,
 		ExpirationUnix: 1770000000,
 		PollType:       "single",
 		Visibility:     "anonymous",
@@ -297,34 +298,122 @@ func TestCreatePollWithRequest(t *testing.T) {
 	if poll.ID != "poll_new" {
 		t.Errorf("Expected poll ID 'poll_new', got '%s'", poll.ID)
 	}
+}
 
-	// Test invalid options
-	req.Options = []string{"A"}
-	_, err = c.CreatePollWithRequest(context.Background(), req)
-	if err == nil {
-		t.Errorf("Expected error for insufficient options")
+func TestCreatePollWithRequestDefaults(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var payload struct {
+			Expiration int64  `json:"expiration"`
+			Type       string `json:"type"`
+			Visibility string `json:"visibility"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("Failed to decode request body: %v", err)
+		}
+		if payload.Type != "multi" {
+			t.Fatalf("Expected default type 'multi', got %q", payload.Type)
+		}
+		if payload.Visibility != "public" {
+			t.Fatalf("Expected default visibility 'public', got %q", payload.Visibility)
+		}
+		if payload.Expiration != 1770000001 {
+			t.Fatalf("Expected expiration 1770000001, got %d", payload.Expiration)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.Write([]byte(`{"response":{"poll":{"data":{"id":"poll_default","subject":"Defaults","options":[{"id":"1","title":"A"},{"id":"2","title":"B"}]}}},"meta":{"code":200}}`))
+	}))
+	defer ts.Close()
+
+	c := client.New("test-token", nil)
+	c.SetBaseURL(ts.URL)
+
+	_, err := c.CreatePollWithRequest(context.Background(), client.CreatePollRequest{
+		GroupID:        "123",
+		Subject:        "Defaults",
+		Options:        []string{"A", "B"},
+		ExpirationSecs: 3600,
+		ExpirationUnix: 1770000001,
+	})
+	if err != nil {
+		t.Fatalf("CreatePollWithRequest failed: %v", err)
+	}
+}
+
+func TestCreatePollWithRequestValidation(t *testing.T) {
+	c := client.New("test-token", nil)
+
+	cases := []struct {
+		name    string
+		req     client.CreatePollRequest
+		wantErr string
+	}{
+		{
+			name: "duplicate options rejected",
+			req: client.CreatePollRequest{
+				GroupID: "123",
+				Subject: "New Poll",
+				Options: []string{"A", " A "},
+			},
+			wantErr: `duplicate poll option: "A"`,
+		},
+		{
+			name: "empty option rejected",
+			req: client.CreatePollRequest{
+				GroupID: "123",
+				Subject: "New Poll",
+				Options: []string{"A", " "},
+			},
+			wantErr: "poll options cannot be empty",
+		},
+		{
+			name: "fewer than two options rejected",
+			req: client.CreatePollRequest{
+				GroupID: "123",
+				Subject: "New Poll",
+				Options: []string{"A"},
+			},
+			wantErr: "at least two options are required",
+		},
+		{
+			name: "empty group id rejected",
+			req: client.CreatePollRequest{
+				GroupID: " ",
+				Subject: "New Poll",
+				Options: []string{"A", "B"},
+			},
+			wantErr: "group_id is required",
+		},
+		{
+			name: "invalid poll type rejected",
+			req: client.CreatePollRequest{
+				GroupID:  "123",
+				Subject:  "New Poll",
+				Options:  []string{"A", "B"},
+				PollType: "invalid",
+			},
+			wantErr: "invalid poll type: invalid",
+		},
+		{
+			name: "invalid visibility rejected",
+			req: client.CreatePollRequest{
+				GroupID:    "123",
+				Subject:    "New Poll",
+				Options:    []string{"A", "B"},
+				Visibility: "invalid",
+			},
+			wantErr: "invalid visibility: invalid",
+		},
 	}
 
-	// Test empty/duplicate options
-	req.Options = []string{"A", "  ", "A"}
-	_, err = c.CreatePollWithRequest(context.Background(), req)
-	if err == nil {
-		t.Errorf("Expected error for duplicate/empty options")
-	}
-
-	// Test invalid type
-	req.Options = []string{"A", "B"}
-	req.PollType = "invalid"
-	_, err = c.CreatePollWithRequest(context.Background(), req)
-	if err == nil {
-		t.Errorf("Expected error for invalid poll type")
-	}
-
-	// Test invalid visibility
-	req.PollType = "single"
-	req.Visibility = "invalid"
-	_, err = c.CreatePollWithRequest(context.Background(), req)
-	if err == nil {
-		t.Errorf("Expected error for invalid visibility")
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			_, err := c.CreatePollWithRequest(context.Background(), tc.req)
+			if err == nil {
+				t.Fatalf("expected error containing %q", tc.wantErr)
+			}
+			if !strings.Contains(err.Error(), tc.wantErr) {
+				t.Fatalf("expected error containing %q, got %v", tc.wantErr, err)
+			}
+		})
 	}
 }

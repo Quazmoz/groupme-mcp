@@ -7,8 +7,7 @@ A Go-based Model Context Protocol (MCP) server for GroupMe, enabling AI agents t
 - **48 MCP Tools** covering all GroupMe operations
 - **10 Combo Tools** for AI-friendly name-based operations (no IDs needed!)
 - **Dual Mode Transport**: `stdio` for Claude/Cursor, `http` for OpenWebUI
-...
-| `MCP_TRANSPORT` | Transport: `stdio` or `http` | No | `http` |- **Enterprise Features**: Rate limiting, structured logging, auto-pagination
+- **Enterprise Features**: Rate limiting, structured logging, auto-pagination
 - **Go 1.23+** for high performance
 - **Docker deployment** with docker-compose
 
@@ -73,7 +72,7 @@ Example probe call:
 {
   "tool": "groupme_probe_api_endpoints",
   "arguments": {
-    "candidates_json": "[{\"label\":\"subgroups-list\",\"endpoint\":\"/groups/90951330/subgroups?page=1&per_page=25\"},{\"label\":\"subgroup-messages\",\"endpoint\":\"/groups/109458263/messages?limit=5\"},{\"label\":\"baseline-groups\",\"endpoint\":\"/groups?page=1&per_page=5\"}]",
+    "candidates_json": "[{\"label\":\"subgroups-list\",\"endpoint\":\"/groups/{parent_group_id}/subgroups?page=1&per_page=25\"},{\"label\":\"subgroup-messages\",\"endpoint\":\"/groups/{subgroup_id}/messages?limit=5\"},{\"label\":\"baseline-groups\",\"endpoint\":\"/groups?page=1&per_page=5\"}]",
     "stop_on_first_success": false,
     "max_body_bytes": 4000
   }

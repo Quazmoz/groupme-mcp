@@ -92,18 +92,7 @@ func RegisterPollTools(s *server.MCPServer, c *client.Client) {
 	)
 	s.AddTool(createPollTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		c := client.Get(ctx, c)
-		groupID, ok := getArgs(request)["group_id"].(string)
-		if !ok || groupID == "" {
-			return mcp.NewToolResultError("group_id is required"), nil
-		}
-
-		reqObj, err := parseCreatePollArgs(request)
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-		reqObj.GroupID = groupID
-
-		poll, err := c.CreatePollWithRequest(ctx, reqObj)
+		poll, err := createPollWithArgs(ctx, c, getArgs(request))
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to create poll: %v", err)), nil
 		}
@@ -146,23 +135,7 @@ func RegisterPollTools(s *server.MCPServer, c *client.Client) {
 	)
 	s.AddTool(createPollByNameTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		c := client.Get(ctx, c)
-		groupName, ok := getArgs(request)["group_name"].(string)
-		if !ok || groupName == "" {
-			return mcp.NewToolResultError("group_name is required"), nil
-		}
-
-		reqObj, err := parseCreatePollArgs(request)
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-
-		group, err := c.SearchGroupByName(ctx, groupName)
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("Failed to resolve group: %v", err)), nil
-		}
-		reqObj.GroupID = group.ID
-
-		poll, err := c.CreatePollWithRequest(ctx, reqObj)
+		poll, group, err := createPollByGroupNameWithArgs(ctx, c, getArgs(request))
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to create poll: %v", err)), nil
 		}
@@ -209,39 +182,7 @@ func RegisterPollTools(s *server.MCPServer, c *client.Client) {
 	)
 	s.AddTool(createPollInSubgroupByNameTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		c := client.Get(ctx, c)
-		parentGroupName, ok := getArgs(request)["parent_group_name"].(string)
-		if !ok || parentGroupName == "" {
-			return mcp.NewToolResultError("parent_group_name is required"), nil
-		}
-
-		subgroupTopic, ok := getArgs(request)["subgroup_topic"].(string)
-		if !ok || subgroupTopic == "" {
-			return mcp.NewToolResultError("subgroup_topic is required"), nil
-		}
-
-		reqObj, err := parseCreatePollArgs(request)
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-
-		group, err := c.SearchGroupByName(ctx, parentGroupName)
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("Failed to resolve parent group: %v", err)), nil
-		}
-
-		subgroups, err := c.ListAllSubgroups(ctx, group.ID)
-		if err != nil {
-			return mcp.NewToolResultError(fmt.Sprintf("Failed to list subgroups: %v", err)), nil
-		}
-
-		subgroup, err := findSubgroup(subgroups, subgroupTopic)
-		if err != nil {
-			return mcp.NewToolResultError(err.Error()), nil
-		}
-
-		reqObj.GroupID = getSubgroupID(subgroup)
-
-		poll, err := c.CreatePollWithRequest(ctx, reqObj)
+		poll, group, subgroup, err := createPollInSubgroupByNameWithArgs(ctx, c, getArgs(request))
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to create poll: %v", err)), nil
 		}
@@ -251,7 +192,7 @@ func RegisterPollTools(s *server.MCPServer, c *client.Client) {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to format response: %v", err)), nil
 		}
 
-		return mcp.NewToolResultText(fmt.Sprintf("Created in group %s (ID: %s), subgroup %s (ID: %s)\n%s", group.Name, group.ID, subgroup.Topic, reqObj.GroupID, string(result))), nil
+		return mcp.NewToolResultText(fmt.Sprintf("Created in group %s (ID: %s), subgroup %s (ID: %s)\n%s", group.Name, group.ID, subgroup.Topic, getSubgroupID(subgroup), string(result))), nil
 	})
 
 	// Get poll tool
@@ -360,17 +301,7 @@ func RegisterPollTools(s *server.MCPServer, c *client.Client) {
 	)
 	s.AddTool(endPollTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
 		c := client.Get(ctx, c)
-		groupID, ok := getArgs(request)["group_id"].(string)
-		if !ok || groupID == "" {
-			return mcp.NewToolResultError("group_id is required"), nil
-		}
-
-		pollID, ok := getArgs(request)["poll_id"].(string)
-		if !ok || pollID == "" {
-			return mcp.NewToolResultError("poll_id is required"), nil
-		}
-
-		poll, err := c.EndPoll(ctx, groupID, pollID)
+		poll, err := endPollWithArgs(ctx, c, getArgs(request))
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to end poll: %v", err)), nil
 		}
@@ -386,15 +317,19 @@ func RegisterPollTools(s *server.MCPServer, c *client.Client) {
 
 // parseCreatePollArgs extracts the common arguments for creating a poll
 func parseCreatePollArgs(request mcp.CallToolRequest) (client.CreatePollRequest, error) {
+	return parseCreatePollArgsMap(getArgs(request))
+}
+
+func parseCreatePollArgsMap(args map[string]interface{}) (client.CreatePollRequest, error) {
 	var req client.CreatePollRequest
 
-	subject, ok := getArgs(request)["subject"].(string)
+	subject, ok := args["subject"].(string)
 	if !ok || subject == "" {
 		return req, fmt.Errorf("subject is required")
 	}
 	req.Subject = subject
 
-	optionsStr, ok := getArgs(request)["options"].(string)
+	optionsStr, ok := args["options"].(string)
 	if !ok || optionsStr == "" {
 		return req, fmt.Errorf("options are required")
 	}
@@ -412,23 +347,181 @@ func parseCreatePollArgs(request mcp.CallToolRequest) (client.CreatePollRequest,
 	}
 	req.Options = options
 
-	if e, ok := getArgs(request)["expiration"].(float64); ok {
+	if e, ok := args["expiration"].(float64); ok {
 		req.ExpirationSecs = int(e)
 	}
 
-	if e, ok := getArgs(request)["expiration_unix"].(float64); ok {
+	if e, ok := args["expiration_unix"].(float64); ok {
 		req.ExpirationUnix = int64(e)
 	}
 
-	if pt, ok := getArgs(request)["poll_type"].(string); ok && pt != "" {
+	if pt, ok := args["poll_type"].(string); ok && pt != "" {
 		req.PollType = pt
 	}
 
-	if vis, ok := getArgs(request)["visibility"].(string); ok && vis != "" {
+	if vis, ok := args["visibility"].(string); ok && vis != "" {
 		req.Visibility = vis
 	}
 
 	return req, nil
+}
+
+func createPollWithArgs(ctx context.Context, c *client.Client, args map[string]interface{}) (*client.Poll, error) {
+	if err := CheckHighImpact(); err != nil {
+		return nil, err
+	}
+
+	groupID := getString(args, "group_id")
+	if groupID == "" {
+		return nil, fmt.Errorf("group_id is required")
+	}
+
+	reqObj, err := parseCreatePollArgsMap(args)
+	if err != nil {
+		return nil, err
+	}
+	reqObj.GroupID = groupID
+
+	return c.CreatePollWithRequest(ctx, reqObj)
+}
+
+func createPollByGroupNameWithArgs(ctx context.Context, c *client.Client, args map[string]interface{}) (*client.Poll, *client.Group, error) {
+	if err := CheckHighImpact(); err != nil {
+		return nil, nil, err
+	}
+
+	groupName := getString(args, "group_name")
+	if groupName == "" {
+		return nil, nil, fmt.Errorf("group_name is required")
+	}
+
+	reqObj, err := parseCreatePollArgsMap(args)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	group, err := resolveGroupForWrite(ctx, c, groupName)
+	if err != nil {
+		return nil, nil, err
+	}
+	reqObj.GroupID = group.ID
+
+	poll, err := c.CreatePollWithRequest(ctx, reqObj)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return poll, group, nil
+}
+
+func createPollInSubgroupByNameWithArgs(ctx context.Context, c *client.Client, args map[string]interface{}) (*client.Poll, *client.Group, *client.Subgroup, error) {
+	if err := CheckHighImpact(); err != nil {
+		return nil, nil, nil, err
+	}
+
+	parentGroupName := getString(args, "parent_group_name")
+	if parentGroupName == "" {
+		return nil, nil, nil, fmt.Errorf("parent_group_name is required")
+	}
+
+	subgroupTopic := getString(args, "subgroup_topic")
+	if subgroupTopic == "" {
+		return nil, nil, nil, fmt.Errorf("subgroup_topic is required")
+	}
+
+	reqObj, err := parseCreatePollArgsMap(args)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	group, err := resolveGroupForWrite(ctx, c, parentGroupName)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	subgroups, err := c.ListAllSubgroups(ctx, group.ID)
+	if err != nil {
+		return nil, nil, nil, fmt.Errorf("failed to list subgroups: %w", err)
+	}
+
+	subgroup, err := findSubgroup(subgroups, subgroupTopic)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	reqObj.GroupID = getSubgroupID(subgroup)
+
+	poll, err := c.CreatePollWithRequest(ctx, reqObj)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	return poll, group, subgroup, nil
+}
+
+func endPollWithArgs(ctx context.Context, c *client.Client, args map[string]interface{}) (*client.Poll, error) {
+	if err := CheckHighImpact(); err != nil {
+		return nil, err
+	}
+
+	groupID := getString(args, "group_id")
+	if groupID == "" {
+		return nil, fmt.Errorf("group_id is required")
+	}
+
+	pollID := getString(args, "poll_id")
+	if pollID == "" {
+		return nil, fmt.Errorf("poll_id is required")
+	}
+
+	return c.EndPoll(ctx, groupID, pollID)
+}
+
+func resolveGroupForWrite(ctx context.Context, c *client.Client, groupName string) (*client.Group, error) {
+	groups, err := c.ListAllGroupsWithOptions(ctx, true)
+	if err != nil {
+		return nil, err
+	}
+
+	search := strings.ToLower(strings.TrimSpace(groupName))
+	if search == "" {
+		return nil, fmt.Errorf("group name is required")
+	}
+
+	var exactMatches []client.Group
+	var partialMatches []client.Group
+	for _, g := range groups {
+		name := strings.ToLower(strings.TrimSpace(g.Name))
+		switch {
+		case name == search:
+			exactMatches = append(exactMatches, g)
+		case strings.Contains(name, search):
+			partialMatches = append(partialMatches, g)
+		}
+	}
+
+	if len(exactMatches) == 1 {
+		return &exactMatches[0], nil
+	}
+	if len(exactMatches) > 1 {
+		return nil, fmt.Errorf("multiple groups exactly matched %q: %s", groupName, formatGroupCandidates(exactMatches))
+	}
+	if len(partialMatches) == 1 {
+		return &partialMatches[0], nil
+	}
+	if len(partialMatches) > 1 {
+		return nil, fmt.Errorf("multiple groups matched %q: %s", groupName, formatGroupCandidates(partialMatches))
+	}
+
+	return nil, fmt.Errorf("no group found matching %q", groupName)
+}
+
+func formatGroupCandidates(groups []client.Group) string {
+	candidates := make([]string, 0, len(groups))
+	for _, g := range groups {
+		candidates = append(candidates, fmt.Sprintf("%s (ID: %s)", g.Name, g.ID))
+	}
+	return strings.Join(candidates, ", ")
 }
 
 func findSubgroup(subgroups []client.Subgroup, targetTopic string) (*client.Subgroup, error) {
