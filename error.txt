@@ -1,0 +1,2 @@
+# github.com/groupme-mcp-server/internal/tools
+internal\tools\groups.go:1035:19: no new variables on left side of :=

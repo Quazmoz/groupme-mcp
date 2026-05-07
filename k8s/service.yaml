@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: groupme-backend
+  namespace: default
+  labels:
+    app: groupme-backend
+spec:
+  selector:
+    app: groupme-backend
+  ports:
+    - protocol: TCP
+      port: 5000
+      targetPort: 5000
+      name: http
+  type: ClusterIP

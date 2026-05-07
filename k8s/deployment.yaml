@@ -1,0 +1,94 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: groupme-backend
+  namespace: default # Change this to your preferred namespace
+  labels:
+    app: groupme-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: groupme-backend
+  template:
+    metadata:
+      labels:
+        app: groupme-backend
+    spec:
+      # Optional: Uncomment if pulling from a private registry
+      # imagePullSecrets:
+      # - name: regcred
+      securityContext:
+        runAsNonRoot: true
+      containers:
+      - name: groupme-backend
+        image: ghcr.io/quazmoz/groupme-mcp:latest # Customize this with your registry
+        imagePullPolicy: Always
+        securityContext:
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop: ["ALL"]
+        resources:
+          requests:
+            cpu: 100m
+            memory: 128Mi
+          limits:
+            cpu: 500m
+            memory: 512Mi
+        ports:
+        - containerPort: 5000
+          name: http
+        env:
+        # --- Core Config ---
+        - name: PORT
+          value: "5000"
+        - name: LOG_LEVEL
+          value: "INFO"
+        - name: MCP_TRANSPORT
+          value: "http"
+        
+        # --- Redis Configuration (Optional) ---
+        - name: REDIS_HOST
+          value: "redis.default.svc.cluster.local" # Update if using redis
+        - name: REDIS_PORT
+          value: "6379"
+        - name: REDIS_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              name: groupme-mcp-secrets
+              key: redis-password
+              optional: true
+        
+        # --- Auth & Security ---
+        - name: ENCRYPTION_KEY
+          valueFrom:
+            secretKeyRef:
+              name: groupme-mcp-secrets
+              key: encryption-key
+              optional: true
+        - name: JWT_SECRET
+          valueFrom:
+            secretKeyRef:
+              name: groupme-mcp-secrets
+              key: jwt-secret
+              optional: true
+        
+        # --- Optional Defaults ---
+        - name: MCP_SERVER_URI
+          value: "mcp://groupme.internal" # Update if applicable
+        - name: TOKEN_EXPIRY_DAYS
+          value: "90"
+          
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 5
+          periodSeconds: 10
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: http
+          initialDelaySeconds: 10
+          periodSeconds: 30

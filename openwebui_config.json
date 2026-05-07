@@ -1,0 +1,10 @@
+[
+    {
+        "type": "mcp",
+        "name": "GroupMe MCP",
+        "url": "http://groupme-backend.apps.svc.cluster.local:5000/mcp",
+        "headers": {
+            "Authorization": "Bearer YOUR_ACCESS_TOKEN_HERE"
+        }
+    }
+]

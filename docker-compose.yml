@@ -1,0 +1,20 @@
+version: '3.8'
+
+services:
+  groupme-mcp-server:
+    build: .
+    container_name: groupme-mcp-server
+    restart: unless-stopped
+    ports:
+      - "${PORT:-5000}:5000"
+    env_file:
+      - .env
+    environment:
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - MCP_TRANSPORT=${MCP_TRANSPORT:-http}
+    networks:
+      - groupme-net
+
+networks:
+  groupme-net:
+    driver: bridge
