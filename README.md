@@ -20,8 +20,8 @@ A Go-based Model Context Protocol (MCP) server for GroupMe, enabling AI agents t
 cp .env.example .env
 # Edit .env and add your GROUPME_ACCESS_TOKEN
 
-# Build and run
-docker-compose up -d
+# Pull and run the stable image
+docker compose up -d
 ```
 
 ## Local Go Dev
@@ -228,7 +228,41 @@ The server supports two main deployment modes for OpenWebUI / Context Forge:
 
 
 
-## Deployment with Kubernetes
+## Docker Images
+
+Docker Hub: https://hub.docker.com/r/quazmoz/groupme-mcp
+
+Pull stable:
+
+```bash
+docker pull quazmoz/groupme-mcp:prod
+```
+
+Pull dev:
+
+```bash
+docker pull quazmoz/groupme-mcp:dev
+```
+
+Run over stdio:
+
+```bash
+docker run --rm -i \
+  -e MCP_TRANSPORT=stdio \
+  -e GROUPME_ACCESS_TOKEN=YOUR_ACCESS_TOKEN \
+  quazmoz/groupme-mcp:prod
+```
+
+Run over HTTP:
+
+```bash
+docker run --rm -p 5000:5000 \
+  -e MCP_TRANSPORT=http \
+  -e GROUPME_ACCESS_TOKEN=YOUR_ACCESS_TOKEN \
+  quazmoz/groupme-mcp:prod
+```
+
+Manual build/publish docs: [docs/docker-publishing.md](docs/docker-publishing.md)
 
 ## Connecting to AI Agents
 
@@ -257,7 +291,7 @@ Add to your VS Code `settings.json`:
 }
 ```
 
-Then port-forward: `kubectl port-forward svc/groupme-backend 5000:5000 -n apps`
+Then port-forward: `kubectl port-forward svc/<service-name> 5000:5000 -n <namespace>`
 
 > **[📖 See SETUP.md for all options (Docker, Context Forge, External URL)](SETUP.md)**
 
@@ -274,7 +308,7 @@ Refer to **Solution A** or **Solution B** in [SETUP.md](SETUP.md).
         "run", "-i", "--rm",
         "-e", "MCP_TRANSPORT=stdio",
         "-e", "GROUPME_ACCESS_TOKEN=YOUR_TOKEN",
-        "quazmoz/quazmoz:groupme"
+        "quazmoz/groupme-mcp:prod"
       ]
     }
   }
@@ -284,7 +318,7 @@ Refer to **Solution A** or **Solution B** in [SETUP.md](SETUP.md).
 ## Docker Hub
 
 ```bash
-docker pull quazmoz/quazmoz:groupme
+docker pull quazmoz/groupme-mcp:latest
 ```
 
 ## Emoji Support ✅

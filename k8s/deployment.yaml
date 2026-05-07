@@ -1,19 +1,19 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: groupme-backend
+  name: groupme-mcp
   namespace: default # Change this to your preferred namespace
   labels:
-    app: groupme-backend
+    app: groupme-mcp
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: groupme-backend
+      app: groupme-mcp
   template:
     metadata:
       labels:
-        app: groupme-backend
+        app: groupme-mcp
     spec:
       # Optional: Uncomment if pulling from a private registry
       # imagePullSecrets:
@@ -21,9 +21,9 @@ spec:
       securityContext:
         runAsNonRoot: true
       containers:
-      - name: groupme-backend
-        image: ghcr.io/quazmoz/groupme-mcp:latest # Customize this with your registry
-        imagePullPolicy: Always
+      - name: groupme-mcp
+        image: quazmoz/groupme-mcp:prod
+        imagePullPolicy: IfNotPresent # Use Always for dev/testing tags when you want each rollout to pull fresh.
         securityContext:
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true

@@ -167,7 +167,7 @@ Run the server locally on your machine using Docker:
                 "--rm",
                 "-e", "MCP_TRANSPORT=stdio",
                 "-e", "GROUPME_ACCESS_TOKEN=${input:groupme-token}",
-                "quazmoz/quazmoz:groupme"
+                "quazmoz/groupme-mcp:prod"
             ]
         }
     },

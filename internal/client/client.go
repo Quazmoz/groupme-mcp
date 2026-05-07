@@ -249,6 +249,25 @@ func (c *Client) redactURLForLogs(rawURL string) string {
 	return c.redactString(parsed.String())
 }
 
+func (c *Client) logSanitizedAPIError(msg, method, endpoint string, attempt int, resp *http.Response) {
+	args := []any{
+		"status", resp.StatusCode,
+		"method", method,
+		"endpoint", c.redactURLForLogs(endpoint),
+		"attempt", attempt + 1,
+	}
+
+	if contentType := strings.TrimSpace(resp.Header.Get("Content-Type")); contentType != "" {
+		args = append(args, "content_type", contentType)
+	}
+
+	c.logger.Error(msg, args...)
+}
+
+func (c *Client) safeAPIError(method, endpoint string, status int) error {
+	return fmt.Errorf("GroupMe API request failed: %s %s returned HTTP %d", method, c.redactURLForLogs(endpoint), status)
+}
+
 func buildURLFromBase(baseURL, endpoint string) (string, error) {
 	base, err := url.Parse(strings.TrimSpace(baseURL))
 	if err != nil {
@@ -413,7 +432,7 @@ func (c *Client) doRequestWithRetry(ctx context.Context, method, endpoint string
 	}
 
 	if resp.StatusCode >= 400 {
-		c.logger.Error("API error", "status", resp.StatusCode, "body", string(respBody))
+		c.logSanitizedAPIError("API error", method, endpoint, attempt, resp)
 
 		// Provide helpful messages for known GroupMe API issues
 		if resp.StatusCode == 500 {
@@ -428,10 +447,13 @@ func (c *Client) doRequestWithRetry(ctx context.Context, method, endpoint string
 					return nil, fmt.Errorf("%s (HTTP 500)", msg)
 				}
 			}
-			return nil, fmt.Errorf("GroupMe API server error (HTTP 500). This is typically a temporary issue on GroupMe's servers. Please try again later. Endpoint: %s", endpoint)
+			return nil, fmt.Errorf(
+				"GroupMe API server error (HTTP 500). This is typically a temporary issue on GroupMe's servers. Please try again later. Endpoint: %s",
+				c.redactURLForLogs(endpoint),
+			)
 		}
 
-		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBody))
+		return nil, c.safeAPIError(method, endpoint, resp.StatusCode)
 	}
 
 	// Handle 2xx responses with empty body (e.g., bot posts return 202 with no body)
@@ -446,7 +468,12 @@ func (c *Client) doRequestWithRetry(ctx context.Context, method, endpoint string
 	}
 
 	if len(apiResp.Meta.Errors) > 0 {
-		return nil, fmt.Errorf("API errors: %v", apiResp.Meta.Errors)
+		return nil, fmt.Errorf(
+			"GroupMe API returned %d error(s) for %s %s",
+			len(apiResp.Meta.Errors),
+			method,
+			c.redactURLForLogs(endpoint),
+		)
 	}
 
 	return apiResp.Response, nil
@@ -508,7 +535,7 @@ func (c *Client) doRawRequestWithRetry(ctx context.Context, method, endpoint str
 	}
 
 	if resp.StatusCode >= 400 {
-		c.logger.Error("API raw error", "status", resp.StatusCode, "body", string(respBody))
+		c.logSanitizedAPIError("API raw error", method, endpoint, attempt, resp)
 
 		if resp.StatusCode == 500 {
 			knownIssues := map[string]string{
@@ -521,10 +548,13 @@ func (c *Client) doRawRequestWithRetry(ctx context.Context, method, endpoint str
 					return nil, fmt.Errorf("%s (HTTP 500)", msg)
 				}
 			}
-			return nil, fmt.Errorf("GroupMe API server error (HTTP 500). This is typically a temporary issue on GroupMe's servers. Please try again later. Endpoint: %s", endpoint)
+			return nil, fmt.Errorf(
+				"GroupMe API server error (HTTP 500). This is typically a temporary issue on GroupMe's servers. Please try again later. Endpoint: %s",
+				c.redactURLForLogs(endpoint),
+			)
 		}
 
-		return nil, fmt.Errorf("API error (status %d): %s", resp.StatusCode, string(respBody))
+		return nil, c.safeAPIError(method, endpoint, resp.StatusCode)
 	}
 
 	if len(respBody) == 0 {
@@ -534,7 +564,12 @@ func (c *Client) doRawRequestWithRetry(ctx context.Context, method, endpoint str
 
 	var apiResp Response
 	if err := json.Unmarshal(respBody, &apiResp); err == nil && len(apiResp.Meta.Errors) > 0 {
-		return nil, fmt.Errorf("API errors: %v", apiResp.Meta.Errors)
+		return nil, fmt.Errorf(
+			"GroupMe API returned %d error(s) for %s %s",
+			len(apiResp.Meta.Errors),
+			method,
+			c.redactURLForLogs(endpoint),
+		)
 	}
 
 	return respBody, nil
