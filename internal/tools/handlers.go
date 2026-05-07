@@ -12,8 +12,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Quazmoz/groupme-mcp/internal/client"
+	"github.com/google/uuid"
 )
 
 var youtubeURLPattern = regexp.MustCompile(`https?://(?:www\.)?(?:youtube\.com/watch\?[^\s<>"']+|youtube\.com/shorts/[^\s<>"']+|youtu\.be/[^\s<>"']+)`)
@@ -74,20 +74,20 @@ func CheckDedupe(targetID, text string) error {
 			window = parsed
 		}
 	}
-	
+
 	key := targetID + ":" + text
-	
+
 	dedupeCache.Lock()
 	defer dedupeCache.Unlock()
-	
+
 	if t, ok := dedupeCache.recent[key]; ok {
 		if time.Since(t) < time.Duration(window)*time.Second {
 			return fmt.Errorf("duplicate message suppressed (sent within last %d seconds)", window)
 		}
 	}
-	
+
 	dedupeCache.recent[key] = time.Now()
-	
+
 	for k, v := range dedupeCache.recent {
 		if time.Since(v) > time.Duration(window)*time.Second {
 			delete(dedupeCache.recent, k)

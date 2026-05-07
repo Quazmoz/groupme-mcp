@@ -32,23 +32,23 @@ type LoginToolRegistrar func(s *server.MCPServer, store auth.TokenStore, userID 
 // 4. Fall back to defaultUser (if configured)
 // 5. If none found, use anonymous/fallback client
 type StatelessMCPHandler struct {
-	logger         *slog.Logger
-	tokenStore     auth.TokenStore
-	tokenGetter    TokenGetter
-	toolRegistrars      []ToolRegistrar
-	loginToolRegistrar   LoginToolRegistrar
-	fallbackClient       *client.Client
-	
+	logger             *slog.Logger
+	tokenStore         auth.TokenStore
+	tokenGetter        TokenGetter
+	toolRegistrars     []ToolRegistrar
+	loginToolRegistrar LoginToolRegistrar
+	fallbackClient     *client.Client
+
 	// JWT configuration for decoding Authorization header
-	jwtSecret      string
-	jwtAudience    string
-	
+	jwtSecret   string
+	jwtAudience string
+
 	// Default user to use when no auth is provided (for single-user scenarios)
-	defaultUser    string
+	defaultUser string
 
 	// Per-user server cache
-	servers      map[string]*server.StreamableHTTPServer
-	serverMutex  sync.RWMutex
+	servers     map[string]*server.StreamableHTTPServer
+	serverMutex sync.RWMutex
 }
 
 // NewStatelessMCPHandler creates a new handler that supports per-user authentication.
@@ -67,16 +67,16 @@ func NewStatelessMCPHandler(
 		logger.Info("Default user configured for anonymous requests", "default_user", defaultUser)
 	}
 	return &StatelessMCPHandler{
-		logger:         logger,
+		logger:             logger,
 		tokenStore:         tokenStore,
 		tokenGetter:        tokenGetter,
 		toolRegistrars:     toolRegistrars,
 		loginToolRegistrar: loginToolRegistrar,
 		fallbackClient:     fallbackClient,
-		jwtSecret:      jwtSecret,
-		jwtAudience:    jwtAudience,
-		defaultUser:    defaultUser,
-		servers:        make(map[string]*server.StreamableHTTPServer),
+		jwtSecret:          jwtSecret,
+		jwtAudience:        jwtAudience,
+		defaultUser:        defaultUser,
+		servers:            make(map[string]*server.StreamableHTTPServer),
 	}
 }
 
@@ -99,13 +99,13 @@ func (h *StatelessMCPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 		if !hasDots && len(token) > 20 {
 			if os.Getenv("DIRECT_TOKEN_HEADER_ENABLED") == "true" {
 				h.logger.Info("Using direct GroupMe token from Authorization header")
-				
+
 				// Create client with direct token
 				client := client.New(token, h.logger)
-				
+
 				// Create temp server (no caching for direct tokens to avoid leak/complexity)
 				srv := h.createMCPServer("direct_token_user", client)
-				
+
 				srv.ServeHTTP(w, r)
 				return
 			} else {
@@ -117,7 +117,7 @@ func (h *StatelessMCPHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) 
 	// Extract user ID using multiple methods
 	userID := h.extractUserID(r)
 
-	h.logger.Info("MCP request", 
+	h.logger.Info("MCP request",
 		"user_id", userID,
 		"method", r.Method,
 		"has_auth_header", r.Header.Get("Authorization") != "",

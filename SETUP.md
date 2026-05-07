@@ -236,3 +236,12 @@ When prompting agents or testing subgroup behavior manually:
 - Read subgroup messages with `/groups/{subgroup_id}/messages`
 - Treat subgroup IDs as group-like IDs for message retrieval
 - Do not teach or prompt subgroup reads as `/conversations/{id}/messages`
+
+## 🤖 Automating with n8n
+
+For creating scheduled automations such as meal polls in a specific group/subtopic, see the specialized guide:
+
+> **[📝 Automating GroupMe Meal Polls with n8n](docs/n8n-meal-poll-automation.md)**
+
+**Timezone Guidance:**
+When creating scheduled polls via an automation engine like n8n, compute absolute expiration timestamps using the appropriate timezone (e.g., `America/New_York`) and pass `expiration_unix`. Using `expiration_unix` avoids timezone and duration bugs.

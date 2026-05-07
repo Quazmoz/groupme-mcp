@@ -141,7 +141,7 @@ func (e *ToolExecutor) HandleToolExecute(w http.ResponseWriter, r *http.Request)
 				e.logger.Info("Using per-request client from X-GroupMe-Access-Token")
 			}
 		}
-		
+
 		if c == nil {
 			// Use fallback client
 			c = e.fallbackClient

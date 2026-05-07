@@ -29,7 +29,7 @@ func checkRateLimit() error {
 	}
 	maxReqs := 100
 	window := 60
-	
+
 	if val := os.Getenv("RATE_LIMIT_REQUESTS"); val != "" {
 		if parsed, err := strconv.Atoi(val); err == nil && parsed > 0 {
 			maxReqs = parsed
@@ -40,13 +40,13 @@ func checkRateLimit() error {
 			window = parsed
 		}
 	}
-	
+
 	globalRateLimiter.Lock()
 	defer globalRateLimiter.Unlock()
-	
+
 	now := time.Now()
 	cutoff := now.Add(-time.Duration(window) * time.Second)
-	
+
 	var valid []time.Time
 	for _, t := range globalRateLimiter.requests {
 		if t.After(cutoff) {
@@ -54,11 +54,11 @@ func checkRateLimit() error {
 		}
 	}
 	globalRateLimiter.requests = valid
-	
+
 	if len(globalRateLimiter.requests) >= maxReqs {
 		return fmt.Errorf("local rate limit exceeded: max %d requests per %d seconds", maxReqs, window)
 	}
-	
+
 	globalRateLimiter.requests = append(globalRateLimiter.requests, now)
 	return nil
 }

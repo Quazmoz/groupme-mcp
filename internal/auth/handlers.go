@@ -11,10 +11,10 @@ import (
 
 // Handlers provides HTTP handlers for authentication endpoints.
 type Handlers struct {
-	store      TokenStore
-	jwtSecret  string
-	audience   string
-	logger     *slog.Logger
+	store     TokenStore
+	jwtSecret string
+	audience  string
+	logger    *slog.Logger
 }
 
 // ClientMiddleware returns a middleware that injects the GroupMe client into the context
@@ -36,7 +36,7 @@ func (h *Handlers) ClientMiddleware(next http.Handler) http.Handler {
 		userID := h.getUserID(r)
 		if userID != "" {
 			h.logger.Info("Middleware: Resolved user identity", "user_id", userID)
-			
+
 			groupmeToken, err := h.store.GetDecrypted(userID)
 			if err != nil {
 				h.logger.Warn("Middleware: No GroupMe token found for user", "user_id", userID)
@@ -44,7 +44,7 @@ func (h *Handlers) ClientMiddleware(next http.Handler) http.Handler {
 				next.ServeHTTP(w, r)
 				return
 			}
-			
+
 			c := client.New(groupmeToken, h.logger)
 			ctx := client.NewContext(r.Context(), c)
 			h.logger.Info("Middleware: Injected authenticated client", "user_id", userID)

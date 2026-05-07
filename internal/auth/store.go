@@ -8,7 +8,7 @@ import (
 )
 
 var (
-	ErrTokenNotFound = errors.New("token not found for user")
+	ErrTokenNotFound       = errors.New("token not found for user")
 	ErrInvalidGroupMeToken = errors.New("invalid GroupMe token: must be at least 20 characters")
 )
 
@@ -151,5 +151,3 @@ func (s *MemoryStore) Revoke(userID string) bool {
 	}
 	return false
 }
-
-

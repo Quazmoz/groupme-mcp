@@ -30,7 +30,7 @@ func (c *Client) AddMembers(ctx context.Context, groupID string, members []Membe
 		Members []MemberToAdd `json:"members"`
 	}{Members: members}
 	payloadBytes, _ := json.Marshal(payload)
-	
+
 	data, err := c.doRequest(ctx, "POST", fmt.Sprintf("/groups/%s/members/add", groupID), strings.NewReader(string(payloadBytes)))
 	if err != nil {
 		return "", err

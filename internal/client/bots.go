@@ -55,10 +55,10 @@ func (c *Client) CreateBotWithOptions(ctx context.Context, name, groupID, callba
 	if dmNotification {
 		botPayload["dm_notification"] = true
 	}
-	
+
 	payload := map[string]interface{}{"bot": botPayload}
 	payloadBytes, _ := json.Marshal(payload)
-	
+
 	data, err := c.doRequest(ctx, "POST", "/bots", strings.NewReader(string(payloadBytes)))
 	if err != nil {
 		return nil, err

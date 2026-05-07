@@ -91,7 +91,7 @@ func (c *Client) ListDirectMessagesWithOptions(ctx context.Context, otherUserID 
 	if err != nil {
 		return nil, err
 	}
-	
+
 	// Handle 304 Not Modified
 	if data == nil {
 		return []DirectMessage{}, nil

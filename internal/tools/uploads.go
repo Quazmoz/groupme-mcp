@@ -32,7 +32,7 @@ func RegisterUploadTools(s *server.MCPServer, c *client.Client) {
 		if !ok || imageDataBase64 == "" {
 			return mcp.NewToolResultError("image_data is required"), nil
 		}
-		
+
 		contentType := "image/png"
 		if ct, ok := getArgs(request)["content_type"].(string); ok && ct != "" {
 			contentType = ct
@@ -43,7 +43,7 @@ func RegisterUploadTools(s *server.MCPServer, c *client.Client) {
 		if idx := strings.Index(imageDataBase64, ","); idx != -1 {
 			imageDataBase64 = imageDataBase64[idx+1:]
 		}
-		
+
 		imgBytes, err := base64.StdEncoding.DecodeString(imageDataBase64)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to decode base64 image: %v", err)), nil
@@ -120,7 +120,7 @@ func RegisterUploadTools(s *server.MCPServer, c *client.Client) {
 				return mcp.NewToolResultError(fmt.Sprintf("Failed to decode file_data_base64: %v", err)), nil
 			}
 		}
-		
+
 		// Check size limit (50MB)
 		if len(data) > 50*1024*1024 {
 			return mcp.NewToolResultError("File too large. Max size is 50MB."), nil

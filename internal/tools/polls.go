@@ -64,7 +64,7 @@ func RegisterPollTools(s *server.MCPServer, c *client.Client) {
 
 	// Create poll tool
 	createPollTool := mcp.NewTool("groupme_create_poll",
-		mcp.WithDescription("Create a poll with a question and options (min 2)."),
+		mcp.WithDescription("Create a poll with a question and options (min 2).\npoll_type=\"single\" means one answer only. poll_type=\"multi\" means multiple answers allowed.\nvisibility=\"public\" means voters are visible. visibility=\"anonymous\" means voters are hidden.\nFor scheduled automations, prefer expiration_unix to avoid timezone/duration mistakes."),
 		mcp.WithString("group_id",
 			mcp.Required(),
 			mcp.Description("The ID of the group."),
@@ -78,7 +78,16 @@ func RegisterPollTools(s *server.MCPServer, c *client.Client) {
 			mcp.Description("JSON array of choices or comma-separated string (e.g. '[\"Pizza\", \"Tacos\"]'). Min 2 options."),
 		),
 		mcp.WithNumber("expiration",
-			mcp.Description("Duration in seconds before poll closes. Default 86400 (24h)."),
+			mcp.Description("Relative duration in seconds before poll closes."),
+		),
+		mcp.WithNumber("expiration_unix",
+			mcp.Description("Absolute Unix timestamp in seconds for poll expiration."),
+		),
+		mcp.WithString("poll_type",
+			mcp.Description("\"single\" or \"multi\" (default \"multi\")."),
+		),
+		mcp.WithString("visibility",
+			mcp.Description("\"public\" or \"anonymous\" (default \"public\")."),
 		),
 	)
 	s.AddTool(createPollTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
@@ -88,40 +97,13 @@ func RegisterPollTools(s *server.MCPServer, c *client.Client) {
 			return mcp.NewToolResultError("group_id is required"), nil
 		}
 
-		subject, ok := getArgs(request)["subject"].(string)
-		if !ok || subject == "" {
-			return mcp.NewToolResultError("subject is required"), nil
+		reqObj, err := parseCreatePollArgs(request)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
 		}
+		reqObj.GroupID = groupID
 
-		optionsStr, ok := getArgs(request)["options"].(string)
-		if !ok || optionsStr == "" {
-			return mcp.NewToolResultError("options are required as a JSON array string"),
-				nil
-		}
-
-		var options []string
-		if err := json.Unmarshal([]byte(optionsStr), &options); err != nil {
-			// Try to handle if it's passed as a simple comma-separated string as fallback
-			if strings.Contains(optionsStr, ",") {
-				parts := strings.Split(optionsStr, ",")
-				for _, p := range parts {
-					options = append(options, strings.TrimSpace(p))
-				}
-			} else {
-				return mcp.NewToolResultError(fmt.Sprintf("Failed to parse options JSON: %v. Please provide a valid JSON array string like '[\"Option 1\", \"Option 2\"]'", err)), nil
-			}
-		}
-
-		if len(options) < 2 {
-			return mcp.NewToolResultError("At least 2 options are required"), nil
-		}
-
-		expiration := 0
-		if e, ok := getArgs(request)["expiration"].(float64); ok {
-			expiration = int(e)
-		}
-
-		poll, err := c.CreatePoll(ctx, groupID, subject, options, expiration)
+		poll, err := c.CreatePollWithRequest(ctx, reqObj)
 		if err != nil {
 			return mcp.NewToolResultError(fmt.Sprintf("Failed to create poll: %v", err)), nil
 		}
@@ -132,6 +114,144 @@ func RegisterPollTools(s *server.MCPServer, c *client.Client) {
 		}
 
 		return mcp.NewToolResultText(string(result)), nil
+	})
+
+	// Create poll by group name tool
+	createPollByNameTool := mcp.NewTool("groupme_create_poll_by_group_name",
+		mcp.WithDescription("Create a poll by resolving the group name first."),
+		mcp.WithString("group_name",
+			mcp.Required(),
+			mcp.Description("The name of the group."),
+		),
+		mcp.WithString("subject",
+			mcp.Required(),
+			mcp.Description("The question to ask."),
+		),
+		mcp.WithString("options",
+			mcp.Required(),
+			mcp.Description("JSON array of choices or comma-separated string. Min 2 options."),
+		),
+		mcp.WithNumber("expiration",
+			mcp.Description("Relative duration in seconds before poll closes."),
+		),
+		mcp.WithNumber("expiration_unix",
+			mcp.Description("Absolute Unix timestamp in seconds for poll expiration."),
+		),
+		mcp.WithString("poll_type",
+			mcp.Description("\"single\" or \"multi\" (default \"multi\")."),
+		),
+		mcp.WithString("visibility",
+			mcp.Description("\"public\" or \"anonymous\" (default \"public\")."),
+		),
+	)
+	s.AddTool(createPollByNameTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		c := client.Get(ctx, c)
+		groupName, ok := getArgs(request)["group_name"].(string)
+		if !ok || groupName == "" {
+			return mcp.NewToolResultError("group_name is required"), nil
+		}
+
+		reqObj, err := parseCreatePollArgs(request)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		group, err := c.SearchGroupByName(ctx, groupName)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to resolve group: %v", err)), nil
+		}
+		reqObj.GroupID = group.ID
+
+		poll, err := c.CreatePollWithRequest(ctx, reqObj)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to create poll: %v", err)), nil
+		}
+
+		result, err := json.MarshalIndent(poll, "", "  ")
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to format response: %v", err)), nil
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf("Created in group %s (ID: %s)\n%s", group.Name, group.ID, string(result))), nil
+	})
+
+	// Create poll in subgroup by name tool
+	createPollInSubgroupByNameTool := mcp.NewTool("groupme_create_poll_in_subgroup_by_name",
+		mcp.WithDescription("Create a poll in a subgroup/topic by resolving the parent group name and subgroup topic."),
+		mcp.WithString("parent_group_name",
+			mcp.Required(),
+			mcp.Description("The name of the parent group."),
+		),
+		mcp.WithString("subgroup_topic",
+			mcp.Required(),
+			mcp.Description("The name of the subgroup/topic. Emoji and whitespace are normalized for matching."),
+		),
+		mcp.WithString("subject",
+			mcp.Required(),
+			mcp.Description("The question to ask."),
+		),
+		mcp.WithString("options",
+			mcp.Required(),
+			mcp.Description("JSON array of choices or comma-separated string. Min 2 options."),
+		),
+		mcp.WithNumber("expiration",
+			mcp.Description("Relative duration in seconds before poll closes."),
+		),
+		mcp.WithNumber("expiration_unix",
+			mcp.Description("Absolute Unix timestamp in seconds for poll expiration."),
+		),
+		mcp.WithString("poll_type",
+			mcp.Description("\"single\" or \"multi\" (default \"multi\")."),
+		),
+		mcp.WithString("visibility",
+			mcp.Description("\"public\" or \"anonymous\" (default \"public\")."),
+		),
+	)
+	s.AddTool(createPollInSubgroupByNameTool, func(ctx context.Context, request mcp.CallToolRequest) (*mcp.CallToolResult, error) {
+		c := client.Get(ctx, c)
+		parentGroupName, ok := getArgs(request)["parent_group_name"].(string)
+		if !ok || parentGroupName == "" {
+			return mcp.NewToolResultError("parent_group_name is required"), nil
+		}
+
+		subgroupTopic, ok := getArgs(request)["subgroup_topic"].(string)
+		if !ok || subgroupTopic == "" {
+			return mcp.NewToolResultError("subgroup_topic is required"), nil
+		}
+
+		reqObj, err := parseCreatePollArgs(request)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		group, err := c.SearchGroupByName(ctx, parentGroupName)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to resolve parent group: %v", err)), nil
+		}
+
+		subgroups, err := c.ListAllSubgroups(ctx, group.ID)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to list subgroups: %v", err)), nil
+		}
+
+		subgroup, err := findSubgroup(subgroups, subgroupTopic)
+		if err != nil {
+			return mcp.NewToolResultError(err.Error()), nil
+		}
+
+		reqObj.GroupID = getSubgroupID(subgroup)
+
+		poll, err := c.CreatePollWithRequest(ctx, reqObj)
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to create poll: %v", err)), nil
+		}
+
+		result, err := json.MarshalIndent(poll, "", "  ")
+		if err != nil {
+			return mcp.NewToolResultError(fmt.Sprintf("Failed to format response: %v", err)), nil
+		}
+
+		return mcp.NewToolResultText(fmt.Sprintf("Created in group %s (ID: %s), subgroup %s (ID: %s)\n%s", group.Name, group.ID, subgroup.Topic, reqObj.GroupID, string(result))), nil
 	})
 
 	// Get poll tool
@@ -262,4 +382,111 @@ func RegisterPollTools(s *server.MCPServer, c *client.Client) {
 
 		return mcp.NewToolResultText(fmt.Sprintf("Poll ended successfully!\n%s", string(result))), nil
 	})
+}
+
+// parseCreatePollArgs extracts the common arguments for creating a poll
+func parseCreatePollArgs(request mcp.CallToolRequest) (client.CreatePollRequest, error) {
+	var req client.CreatePollRequest
+
+	subject, ok := getArgs(request)["subject"].(string)
+	if !ok || subject == "" {
+		return req, fmt.Errorf("subject is required")
+	}
+	req.Subject = subject
+
+	optionsStr, ok := getArgs(request)["options"].(string)
+	if !ok || optionsStr == "" {
+		return req, fmt.Errorf("options are required")
+	}
+
+	var options []string
+	if err := json.Unmarshal([]byte(optionsStr), &options); err != nil {
+		if strings.Contains(optionsStr, ",") {
+			parts := strings.Split(optionsStr, ",")
+			for _, p := range parts {
+				options = append(options, strings.TrimSpace(p))
+			}
+		} else {
+			return req, fmt.Errorf("failed to parse options JSON: %v", err)
+		}
+	}
+	req.Options = options
+
+	if e, ok := getArgs(request)["expiration"].(float64); ok {
+		req.ExpirationSecs = int(e)
+	}
+
+	if e, ok := getArgs(request)["expiration_unix"].(float64); ok {
+		req.ExpirationUnix = int64(e)
+	}
+
+	if pt, ok := getArgs(request)["poll_type"].(string); ok && pt != "" {
+		req.PollType = pt
+	}
+
+	if vis, ok := getArgs(request)["visibility"].(string); ok && vis != "" {
+		req.Visibility = vis
+	}
+
+	return req, nil
+}
+
+func findSubgroup(subgroups []client.Subgroup, targetTopic string) (*client.Subgroup, error) {
+	// 1. Exact match
+	for i, sg := range subgroups {
+		if sg.Topic == targetTopic {
+			return &subgroups[i], nil
+		}
+	}
+
+	// 2. Case-insensitive trimmed match
+	targetLower := strings.ToLower(strings.TrimSpace(targetTopic))
+	for i, sg := range subgroups {
+		if strings.ToLower(strings.TrimSpace(sg.Topic)) == targetLower {
+			return &subgroups[i], nil
+		}
+	}
+
+	// 3. Alphanumeric match
+	targetAlnum := extractAlnum(targetTopic)
+	if targetAlnum != "" {
+		var matches []*client.Subgroup
+		for i, sg := range subgroups {
+			if extractAlnum(sg.Topic) == targetAlnum {
+				matches = append(matches, &subgroups[i])
+			}
+		}
+		if len(matches) == 1 {
+			return matches[0], nil
+		} else if len(matches) > 1 {
+			var names []string
+			for _, m := range matches {
+				names = append(names, m.Topic)
+			}
+			return nil, fmt.Errorf("multiple subgroups matched '%s': %s", targetTopic, strings.Join(names, ", "))
+		}
+	}
+
+	return nil, fmt.Errorf("no subgroup found matching topic '%s'", targetTopic)
+}
+
+func extractAlnum(s string) string {
+	var b strings.Builder
+	for _, r := range strings.ToLower(s) {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') {
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func getSubgroupID(sg *client.Subgroup) string {
+	switch v := sg.ID.(type) {
+	case string:
+		return v
+	case float64:
+		return fmt.Sprintf("%.0f", v)
+	default:
+		return fmt.Sprintf("%v", v)
+	}
 }

@@ -148,8 +148,8 @@ func (s *PostgresStore) GetDecrypted(userID string) (string, error) {
 	// Update last used (fire and forget)
 	go func() {
 		ctx := context.Background()
-		_, _ = s.db.ExecContext(ctx, 
-			"UPDATE user_tokens SET last_used_at = NOW() WHERE user_id = $1", 
+		_, _ = s.db.ExecContext(ctx,
+			"UPDATE user_tokens SET last_used_at = NOW() WHERE user_id = $1",
 			userID)
 	}()
 
@@ -186,7 +186,7 @@ func (s *PostgresStore) Status(userID string) (*UserToken, bool) {
 // Revoke removes the token from PostgreSQL.
 func (s *PostgresStore) Revoke(userID string) bool {
 	ctx := context.Background()
-	result, err := s.db.ExecContext(ctx, 
+	result, err := s.db.ExecContext(ctx,
 		"DELETE FROM user_tokens WHERE user_id = $1", userID)
 	if err != nil {
 		s.logger.Error("Postgres revoke failed", "error", err)

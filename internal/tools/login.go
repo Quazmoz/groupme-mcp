@@ -23,7 +23,7 @@ func RegisterLoginTool(s *server.MCPServer, store auth.TokenStore, userID string
 		if userID == "" || userID == "_anonymous_" {
 			return mcp.NewToolResultError("Cannot log in: No persistent User ID found in request context (Are you connected via an authenticated channel?)"), nil
 		}
-		
+
 		args := request.GetArguments()
 		tokenVal, ok := args["token"]
 		if !ok {

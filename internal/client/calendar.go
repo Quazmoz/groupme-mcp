@@ -9,20 +9,20 @@ import (
 
 // Event represents a calendar event.
 type Event struct {
-	ID          string `json:"id"`
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	CreatorID   string `json:"creator_id"`
-	ChannelID   string `json:"channel_id"` // group_id
-	IsAllDay    bool   `json:"is_all_day"`
-	Timezone    string `json:"timezone"`
-	StartAt     string `json:"start_at"` // ISO 8601
-	EndAt       string `json:"end_at"`   // ISO 8601
-	CreatedAt   string `json:"created_at"`
-	UpdatedAt   string `json:"updated_at"`
-	DeletedAt   string `json:"deleted_at"`
-	Going       []string `json:"going"` // List of user IDs
-	ImageURL    string   `json:"image_url,omitempty"`
+	ID          string         `json:"id"`
+	Name        string         `json:"name"`
+	Description string         `json:"description"`
+	CreatorID   string         `json:"creator_id"`
+	ChannelID   string         `json:"channel_id"` // group_id
+	IsAllDay    bool           `json:"is_all_day"`
+	Timezone    string         `json:"timezone"`
+	StartAt     string         `json:"start_at"` // ISO 8601
+	EndAt       string         `json:"end_at"`   // ISO 8601
+	CreatedAt   string         `json:"created_at"`
+	UpdatedAt   string         `json:"updated_at"`
+	DeletedAt   string         `json:"deleted_at"`
+	Going       []string       `json:"going"` // List of user IDs
+	ImageURL    string         `json:"image_url,omitempty"`
 	Location    *EventLocation `json:"location,omitempty"`
 }
 
@@ -43,7 +43,7 @@ func (c *Client) ListCalendarEvents(ctx context.Context, groupID string, endAt s
 		return nil, fmt.Errorf("end_at parameter is required")
 	}
 	url := fmt.Sprintf("/conversations/%s/events/list?end_at=%s&limit=%d", groupID, endAt, limit)
-	
+
 	data, err := c.doRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err
@@ -71,12 +71,12 @@ func (c *Client) CreateEvent(ctx context.Context, groupID, name, description, st
 // reminders: Array of reminder times in minutes before the event (optional)
 func (c *Client) CreateEventWithOptions(ctx context.Context, groupID, name, description, startAt, endAt, timezone string, isAllDay bool, imageURL string, location *EventLocation, reminders []int) (*Event, error) {
 	payload := map[string]interface{}{
-		"name":       name,
+		"name":        name,
 		"description": description,
-		"start_at":   startAt,
-		"end_at":     endAt,
-		"timezone":   timezone,
-		"is_all_day": isAllDay,
+		"start_at":    startAt,
+		"end_at":      endAt,
+		"timezone":    timezone,
+		"is_all_day":  isAllDay,
 	}
 
 	if imageURL != "" {

@@ -33,7 +33,7 @@ func NewRedisStore(addr, password string, db int, encryptionKey string, expiryDa
 	// Ping to verify connection
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	
+
 	if err := client.Ping(ctx).Err(); err != nil {
 		return nil, fmt.Errorf("failed to connect to Redis: %w", err)
 	}
@@ -77,7 +77,7 @@ func (s *RedisStore) Register(userID, groupmeToken string) error {
 	ctx := context.Background()
 	// Key: "mcp:token:{userID}"
 	key := fmt.Sprintf("mcp:token:%s", userID)
-	
+
 	// Set with expiration
 	expiry := time.Duration(s.expiryDays) * 24 * time.Hour
 	if err := s.client.Set(ctx, key, data, expiry).Err(); err != nil {
@@ -121,7 +121,7 @@ func (s *RedisStore) GetDecrypted(userID string) (string, error) {
 	go func() {
 		ctx := context.Background()
 		token.LastUsedAt = time.Now()
-		
+
 		// Re-marshal and update
 		if data, err := json.Marshal(token); err == nil {
 			// Keep existing TTL
@@ -174,7 +174,7 @@ func (s *RedisStore) Revoke(userID string) bool {
 		s.logger.Error("Redis revoke failed", "error", err)
 		return false
 	}
-	
+
 	if deleted > 0 {
 		s.logger.Info("Token revoked for user (redis)", "user_id", userID)
 		return true

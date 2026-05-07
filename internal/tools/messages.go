@@ -10,8 +10,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/Quazmoz/groupme-mcp/internal/client"
+	"github.com/google/uuid"
 	"github.com/mark3labs/mcp-go/mcp"
 	"github.com/mark3labs/mcp-go/server"
 )
@@ -613,7 +613,7 @@ func RegisterMessageTools(s *server.MCPServer, c *client.Client) {
 		if err := CheckMessageLength(text); err != nil {
 			return mcp.NewToolResultError(err.Error()), nil
 		}
-		
+
 		if imageURL == "" && imageBase64 == "" {
 			return mcp.NewToolResultError("Either image_url or image_base64 is required"), nil
 		}

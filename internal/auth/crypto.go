@@ -12,7 +12,7 @@ import (
 )
 
 var (
-	ErrInvalidKey       = errors.New("encryption key must be 32 bytes for AES-256")
+	ErrInvalidKey        = errors.New("encryption key must be 32 bytes for AES-256")
 	ErrInvalidCiphertext = errors.New("ciphertext too short")
 )
 

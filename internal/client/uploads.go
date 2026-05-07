@@ -70,7 +70,7 @@ func (c *Client) UploadImage(ctx context.Context, imageData []byte, contentType 
 func (c *Client) UploadFile(ctx context.Context, groupID, filename string, fileData []byte) (string, error) {
 	// URL: https://file.groupme.com/v1/[GROUP_ID]/files?name=[FILE_NAME]
 	url := fmt.Sprintf("https://file.groupme.com/v1/%s/files?name=%s", groupID, filename)
-	
+
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewReader(fileData))
 	if err != nil {
 		return "", fmt.Errorf("failed to create upload request: %w", err)
@@ -100,7 +100,7 @@ func (c *Client) UploadFile(ctx context.Context, groupID, filename string, fileD
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", fmt.Errorf("failed to decode upload response: %w", err)
 	}
-	
+
 	return result.StatusURL, nil
 }
 
@@ -108,10 +108,10 @@ func (c *Client) UploadFile(ctx context.Context, groupID, filename string, fileD
 func (c *Client) UploadVideo(ctx context.Context, groupID, filename string, videoData []byte) (string, error) {
 	// URL: https://video.groupme.com/transcode
 	url := "https://video.groupme.com/transcode"
-	
+
 	body := &bytes.Buffer{}
 	writer := multipart.NewWriter(body)
-	
+
 	part, err := writer.CreateFormFile("file", filename)
 	if err != nil {
 		return "", fmt.Errorf("failed to create form file: %w", err)
@@ -149,6 +149,6 @@ func (c *Client) UploadVideo(ctx context.Context, groupID, filename string, vide
 	if err := json.NewDecoder(resp.Body).Decode(&result); err != nil {
 		return "", fmt.Errorf("failed to decode upload response: %w", err)
 	}
-	
+
 	return result.StatusURL, nil
 }

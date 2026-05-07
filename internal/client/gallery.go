@@ -16,7 +16,7 @@ func (c *Client) ListGallery(ctx context.Context, conversationID string, limit i
 	if acceptFiles {
 		url += "&acceptFiles=1"
 	}
-	
+
 	data, err := c.doRequest(ctx, "GET", url, nil)
 	if err != nil {
 		return nil, err

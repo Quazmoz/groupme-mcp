@@ -348,7 +348,7 @@ func main() {
 					} else if origin == "http://localhost" || strings.HasPrefix(origin, "http://localhost:") {
 						allowed = true
 					}
-					
+
 					if allowed {
 						w.Header().Set("Access-Control-Allow-Origin", origin)
 					}

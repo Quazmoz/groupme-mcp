@@ -22,12 +22,12 @@ func mockHandler(t *testing.T, expectedMethod, expectedPath string, statusCode i
 		if r.URL.Path != expectedPath {
 			t.Errorf("expected path %s, got %s", expectedPath, r.URL.Path)
 		}
-		
+
 		// Verify headers
 		if r.Header.Get("X-Access-Token") == "" {
 			t.Error("expected X-Access-Token header to be set")
 		}
-		
+
 		if validateReq != nil {
 			validateReq(r)
 		}
@@ -43,7 +43,7 @@ func TestListGroups(t *testing.T) {
 	response := `{"response": [
 		{"id": "123", "name": "Test Group", "description": "A test group"}
 	], "meta": {"code": 200}}`
-	
+
 	server := httptest.NewServer(mockHandler(t, "GET", "/groups", http.StatusOK, response, func(r *http.Request) {
 		if r.URL.Query().Get("page") != "1" {
 			t.Errorf("expected page 1")
@@ -98,7 +98,7 @@ func TestSendMessage(t *testing.T) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-	
+
 	if msg.Text != "Hello" {
 		t.Errorf("expected message text Hello, got %s", msg.Text)
 	}
@@ -152,7 +152,7 @@ func TestRateLimiting(t *testing.T) {
 	if err != nil {
 		t.Errorf("unexpected error after retry: %v", err)
 	}
-	
+
 	if attempts < 2 {
 		t.Error("expected retries for rate limit")
 	}
@@ -175,107 +175,156 @@ func TestServerError(t *testing.T) {
 }
 
 func TestListPolls(t *testing.T) {
-ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-if r.Method != http.MethodGet {
-t.Errorf("Expected method GET, got %s", r.Method)
-}
-// Correct endpoint is /poll/:group_id (not /poll/groups/:group_id)
-if r.URL.Path != "/poll/123" {
-t.Errorf("Expected path /poll/123, got %s", r.URL.Path)
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodGet {
+			t.Errorf("Expected method GET, got %s", r.Method)
+		}
+		// Correct endpoint is /poll/:group_id (not /poll/groups/:group_id)
+		if r.URL.Path != "/poll/123" {
+			t.Errorf("Expected path /poll/123, got %s", r.URL.Path)
+		}
+
+		response := map[string]interface{}{
+			"response": map[string]interface{}{
+				"polls": []map[string]interface{}{
+					{
+						"data": map[string]interface{}{
+							"id":      "poll1",
+							"subject": "Test Poll",
+							"options": []map[string]interface{}{
+								{"id": "opt1", "title": "Yes", "votes": 5},
+							},
+						},
+					},
+				},
+			},
+			"meta": map[string]interface{}{"code": 200},
+		}
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer ts.Close()
+
+	c := client.New("test-token", nil)
+	c.SetBaseURL(ts.URL)
+
+	polls, err := c.ListPolls(context.Background(), "123")
+	if err != nil {
+		t.Fatalf("ListPolls failed: %v", err)
+	}
+
+	if len(polls) != 1 {
+		t.Errorf("Expected 1 poll, got %d", len(polls))
+	}
+	if polls[0].Subject != "Test Poll" {
+		t.Errorf("Expected poll subject 'Test Poll', got '%s'", polls[0].Subject)
+	}
 }
 
-response := map[string]interface{}{
-"response": map[string]interface{}{
-"polls": []map[string]interface{}{
-{
-"data": map[string]interface{}{
-"id":      "poll1",
-"subject": "Test Poll",
-"options": []map[string]interface{}{
-{"id": "opt1", "title": "Yes", "votes": 5},
-},
-},
-},
-},
-},
-"meta": map[string]interface{}{"code": 200},
-}
-json.NewEncoder(w).Encode(response)
-}))
-defer ts.Close()
+func TestCreatePollWithRequest(t *testing.T) {
+	ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost {
+			t.Errorf("Expected method POST, got %s", r.Method)
+		}
+		if r.URL.Path != "/poll/123" {
+			t.Errorf("Expected path /poll/123, got %s", r.URL.Path)
+		}
 
-c := client.New("test-token", nil)
-c.SetBaseURL(ts.URL)
+		var payload struct {
+			Subject    string `json:"subject"`
+			Expiration int64  `json:"expiration"`
+			Type       string `json:"type"`
+			Visibility string `json:"visibility"`
+			Options    []struct {
+				Title string `json:"title"`
+			} `json:"options"`
+		}
+		if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
+			t.Fatalf("Failed to decode request body: %v", err)
+		}
 
-polls, err := c.ListPolls(context.Background(), "123")
-if err != nil {
-t.Fatalf("ListPolls failed: %v", err)
-}
+		if payload.Subject != "New Poll" {
+			t.Errorf("Expected subject 'New Poll', got '%s'", payload.Subject)
+		}
+		if len(payload.Options) != 2 {
+			t.Errorf("Expected 2 options, got %d", len(payload.Options))
+		}
+		if payload.Type != "single" {
+			t.Errorf("Expected type 'single', got '%s'", payload.Type)
+		}
+		if payload.Visibility != "anonymous" {
+			t.Errorf("Expected visibility 'anonymous', got '%s'", payload.Visibility)
+		}
+		if payload.Expiration != 1770000000 {
+			t.Errorf("Expected expiration 1770000000, got %d", payload.Expiration)
+		}
 
-if len(polls) != 1 {
-t.Errorf("Expected 1 poll, got %d", len(polls))
-}
-if polls[0].Subject != "Test Poll" {
-t.Errorf("Expected poll subject 'Test Poll', got '%s'", polls[0].Subject)
-}
-}
+		response := map[string]interface{}{
+			"response": map[string]interface{}{
+				"poll": map[string]interface{}{
+					"data": map[string]interface{}{
+						"id":      "poll_new",
+						"subject": "New Poll",
+						"options": []map[string]interface{}{
+							{"id": "1", "title": "A", "votes": 0},
+							{"id": "2", "title": "B", "votes": 0},
+						},
+					},
+				},
+			},
+			"meta": map[string]interface{}{"code": 200},
+		}
+		json.NewEncoder(w).Encode(response)
+	}))
+	defer ts.Close()
 
-func TestCreatePoll(t *testing.T) {
-ts := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-if r.Method != http.MethodPost {
-t.Errorf("Expected method POST, got %s", r.Method)
-}
-// Correct endpoint is /poll/:group_id (not /poll/groups/:group_id)
-if r.URL.Path != "/poll/123" {
-t.Errorf("Expected path /poll/123, got %s", r.URL.Path)
-}
+	c := client.New("test-token", nil)
+	c.SetBaseURL(ts.URL)
 
-var payload struct {
-Subject string `json:"subject"`
-Options []struct {
-Title string `json:"title"`
-} `json:"options"`
-}
-if err := json.NewDecoder(r.Body).Decode(&payload); err != nil {
-t.Fatalf("Failed to decode request body: %v", err)
-}
+	req := client.CreatePollRequest{
+		GroupID:        "123",
+		Subject:        "New Poll",
+		Options:        []string{"A", "B"},
+		ExpirationUnix: 1770000000,
+		PollType:       "single",
+		Visibility:     "anonymous",
+	}
 
-if payload.Subject != "New Poll" {
-t.Errorf("Expected subject 'New Poll', got '%s'", payload.Subject)
-}
-if len(payload.Options) != 2 {
-t.Errorf("Expected 2 options, got %d", len(payload.Options))
-}
+	poll, err := c.CreatePollWithRequest(context.Background(), req)
+	if err != nil {
+		t.Fatalf("CreatePollWithRequest failed: %v", err)
+	}
 
-response := map[string]interface{}{
-"response": map[string]interface{}{
-"poll": map[string]interface{}{
-"data": map[string]interface{}{
-"id":      "poll_new",
-"subject": "New Poll",
-"options": []map[string]interface{}{
-{"id": "1", "title": "A", "votes": 0},
-{"id": "2", "title": "B", "votes": 0},
-},
-},
-},
-},
-"meta": map[string]interface{}{"code": 200},
-}
-json.NewEncoder(w).Encode(response)
-}))
-defer ts.Close()
+	if poll.ID != "poll_new" {
+		t.Errorf("Expected poll ID 'poll_new', got '%s'", poll.ID)
+	}
 
-c := client.New("test-token", nil)
-c.SetBaseURL(ts.URL)
+	// Test invalid options
+	req.Options = []string{"A"}
+	_, err = c.CreatePollWithRequest(context.Background(), req)
+	if err == nil {
+		t.Errorf("Expected error for insufficient options")
+	}
 
-poll, err := c.CreatePoll(context.Background(), "123", "New Poll", []string{"A", "B"}, 0)
-if err != nil {
-t.Fatalf("CreatePoll failed: %v", err)
-}
+	// Test empty/duplicate options
+	req.Options = []string{"A", "  ", "A"}
+	_, err = c.CreatePollWithRequest(context.Background(), req)
+	if err == nil {
+		t.Errorf("Expected error for duplicate/empty options")
+	}
 
-if poll.ID != "poll_new" {
-t.Errorf("Expected poll ID 'poll_new', got '%s'", poll.ID)
-}
-}
+	// Test invalid type
+	req.Options = []string{"A", "B"}
+	req.PollType = "invalid"
+	_, err = c.CreatePollWithRequest(context.Background(), req)
+	if err == nil {
+		t.Errorf("Expected error for invalid poll type")
+	}
 
+	// Test invalid visibility
+	req.PollType = "single"
+	req.Visibility = "invalid"
+	_, err = c.CreatePollWithRequest(context.Background(), req)
+	if err == nil {
+		t.Errorf("Expected error for invalid visibility")
+	}
+}

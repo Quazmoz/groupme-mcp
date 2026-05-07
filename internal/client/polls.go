@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -69,27 +70,75 @@ func (c *Client) ListPolls(ctx context.Context, groupID string) ([]Poll, error) 
 	return polls, nil
 }
 
-// CreatePoll creates a new poll in a group.
+// CreatePollRequest contains options for creating a poll
+type CreatePollRequest struct {
+	GroupID        string
+	Subject        string
+	Options        []string
+	ExpirationSecs int
+	ExpirationUnix int64
+	PollType       string
+	Visibility     string
+}
+
+// CreatePollWithRequest creates a new poll with advanced options.
 // See: https://groupme-js.github.io/GroupMeCommunityDocs/api/groups/polls/
-func (c *Client) CreatePoll(ctx context.Context, groupID, subject string, options []string, expiration int) (*Poll, error) {
+func (c *Client) CreatePollWithRequest(ctx context.Context, req CreatePollRequest) (*Poll, error) {
+	if req.Subject == "" {
+		return nil, fmt.Errorf("subject is required")
+	}
+
+	// Trim whitespace and filter out empty options
+	var validOptions []string
+	seen := make(map[string]bool)
+	for _, opt := range req.Options {
+		trimmed := strings.TrimSpace(opt)
+		if trimmed == "" {
+			continue
+		}
+		if !seen[trimmed] {
+			seen[trimmed] = true
+			validOptions = append(validOptions, trimmed)
+		}
+	}
+
+	if len(validOptions) < 2 {
+		return nil, fmt.Errorf("at least two unique, non-empty options are required")
+	}
+
+	pollType := req.PollType
+	if pollType == "" {
+		pollType = "multi" // Default backward compatibility
+	} else if pollType != "single" && pollType != "multi" {
+		return nil, fmt.Errorf("invalid poll type: %s", pollType)
+	}
+
+	visibility := req.Visibility
+	if visibility == "" {
+		visibility = "public"
+	} else if visibility != "public" && visibility != "anonymous" {
+		return nil, fmt.Errorf("invalid visibility: %s", visibility)
+	}
+
 	// Endpoint: POST /poll/:group_id
-	endpoint := fmt.Sprintf("/poll/%s", groupID)
+	endpoint := fmt.Sprintf("/poll/%s", req.GroupID)
 
 	// Build options array
 	type CreatePollOption struct {
 		Title string `json:"title"`
 	}
 	var pollOptions []CreatePollOption
-	for _, opt := range options {
+	for _, opt := range validOptions {
 		pollOptions = append(pollOptions, CreatePollOption{Title: opt})
 	}
 
-	// Default expiration to 1 day (timestamp) if not set
 	var expirationDate int64
-	if expiration <= 0 {
-		expirationDate = time.Now().Add(24 * time.Hour).Unix()
+	if req.ExpirationUnix > 0 {
+		expirationDate = req.ExpirationUnix
+	} else if req.ExpirationSecs > 0 {
+		expirationDate = time.Now().Add(time.Duration(req.ExpirationSecs) * time.Second).Unix()
 	} else {
-		expirationDate = time.Now().Add(time.Duration(expiration) * time.Second).Unix()
+		expirationDate = time.Now().Add(24 * time.Hour).Unix()
 	}
 
 	// Payload match official docs
@@ -100,11 +149,11 @@ func (c *Client) CreatePoll(ctx context.Context, groupID, subject string, option
 		Type       string             `json:"type"`       // "single" or "multi"
 		Visibility string             `json:"visibility"` // "public" or "anonymous"
 	}{
-		Subject:    subject,
+		Subject:    req.Subject,
 		Options:    pollOptions,
 		Expiration: expirationDate,
-		Type:       "multi",  // Default to allowing multiple votes
-		Visibility: "public", // Default to public visibility
+		Type:       pollType,
+		Visibility: visibility,
 	}
 
 	body, err := json.Marshal(payload)
@@ -112,7 +161,6 @@ func (c *Client) CreatePoll(ctx context.Context, groupID, subject string, option
 		return nil, fmt.Errorf("failed to marshal payload: %w", err)
 	}
 
-	// Response structure: { "poll": { "data": Poll object, ... }, "message": ... }
 	var response struct {
 		PollWrapper PollWrapper `json:"poll"`
 	}
@@ -127,6 +175,20 @@ func (c *Client) CreatePoll(ctx context.Context, groupID, subject string, option
 	}
 
 	return &response.PollWrapper.Data, nil
+}
+
+// CreatePoll creates a new poll in a group.
+// Deprecated: use CreatePollWithRequest instead.
+// See: https://groupme-js.github.io/GroupMeCommunityDocs/api/groups/polls/
+func (c *Client) CreatePoll(ctx context.Context, groupID, subject string, options []string, expiration int) (*Poll, error) {
+	return c.CreatePollWithRequest(ctx, CreatePollRequest{
+		GroupID:        groupID,
+		Subject:        subject,
+		Options:        options,
+		ExpirationSecs: expiration,
+		PollType:       "multi",
+		Visibility:     "public",
+	})
 }
 
 // GetPoll gets a specific poll.
