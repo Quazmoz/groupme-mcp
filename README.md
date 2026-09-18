@@ -2,6 +2,12 @@
 
 A Go-based Model Context Protocol (MCP) server for GroupMe, enabling AI agents to interact with GroupMe groups, messages, DMs, and bots.
 
+## Video demo
+
+[![I Built a Custom AI Agent for GroupMe (MCP + OpenWebUI)](https://img.youtube.com/vi/bvn5fnlmIZM/0.jpg)](https://www.youtube.com/watch?v=bvn5fnlmIZM)
+
+**[Watch: I Built a Custom AI Agent for GroupMe (MCP + OpenWebUI)](https://www.youtube.com/watch?v=bvn5fnlmIZM)** — an end-to-end demo of connecting GroupMe messaging to an AI agent through MCP and OpenWebUI.
+
 ## Features
 
 - **46 MCP Tools** covering all GroupMe operations
